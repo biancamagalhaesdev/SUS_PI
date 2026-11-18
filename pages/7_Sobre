@@ -1,0 +1,83 @@
+"""Descrição acadêmica do projeto, fontes, técnicas e limitações."""
+import streamlit as st
+
+from utils.config import LINKS
+from utils.data_loader import ErroDados, carregar_json
+from utils.ui import cabecalho
+
+cabecalho("Sobre o Projeto", "SUS Inteligente — Piauí: Plataforma de Inteligência Territorial da Produção Ambulatorial")
+
+
+def json_opcional(nome):
+    try:
+        return carregar_json(nome)
+    except ErroDados:
+        return None
+
+
+meta, malha = json_opcional("metadados"), json_opcional("malha_fonte")
+
+st.markdown("""
+### Objetivo
+Desenvolver uma plataforma de inteligência territorial baseada em Aprendizado de Máquina para analisar padrões
+temporais e territoriais da produção ambulatorial do SUS no Piauí. A plataforma apresenta os resultados do projeto
+acadêmico "Aprendizado de Máquina aplicado à análise preditiva e à identificação de padrões temporais e territoriais
+da produção ambulatorial do SUS".
+
+### Fonte dos dados
+- **Produção ambulatorial:** DATASUS — Sistema de Informações Ambulatoriais do SUS (SIA/SUS), consulta no TabNet com
+  Município na linha, Ano/mês de **processamento** na coluna e **Quantidade aprovada** como conteúdo, para o Piauí.
+- **Limites municipais:** malha municipal oficial do IBGE. A associação entre dados e polígonos é feita pelo código
+  IBGE do município (6 dígitos na base; 7 dígitos na malha, sem o dígito verificador), nunca pelo nome.
+
+### Período
+Janeiro de 2021 a agosto de 2026 (224 municípios × 68 meses).
+
+### Técnicas utilizadas
+- **Aprendizado supervisionado (previsão de séries temporais):** Regressão Linear, Random Forest, Gradient Boosting,
+  XGBoost e rede neural MLP, comparados com o naive sazonal; previsão de um mês à frente, com validação temporal
+  progressiva (walk-forward) e teste isolado.
+- **Aprendizado não supervisionado (agrupamento territorial):** K-Means e agrupamento hierárquico de Ward, com escolha
+  do número de grupos por cotovelo e silhueta; PCA para visualização.
+- **Detecção de anomalias:** Isolation Forest e análise dos desvios entre produção registrada e prevista, além de
+  indicadores de queda e de instabilidade, classificados por percentis de um período de referência.
+
+Os modelos de previsão e o agrupamento foram treinados no notebook do projeto; o site apenas lê os resultados
+exportados, sem treinar os modelos novamente. A detecção de anomalias (Isolation Forest) e os critérios de alerta são
+calculados pelo próprio site (`scripts/gerar_alertas.py`) e não fazem parte das análises do notebook.
+
+### Limitações
+- Os dados representam a **produção registrada** (quantidade aprovada), e não necessariamente a demanda real por
+  serviços de saúde, a totalidade dos atendimentos realizados, filas de espera ou a capacidade de atendimento.
+- A série é organizada por mês de processamento e reflete também o fluxo administrativo de envio e aprovação.
+- A base não traz procedimentos nem estabelecimentos; por isso, não há filtros ou análises por grupo de procedimento.
+- Em jun–ago/2026, dezenas de municípios aparecem com produção zero ao mesmo tempo e Teresina cai cerca de 40%; a causa
+  não pode ser identificada com estes dados.
+- As previsões são de um mês à frente, sem intervalo de previsão, e os modelos erram mais nos municípios pequenos e
+  instáveis.
+- Os limites dos alertas são calculados com todos os municípios juntos; mudanças relativas moderadas em municípios
+  grandes e estáveis podem não ser classificadas como atípicas.
+- Alertas e agrupamentos descrevem padrões estatísticos de registro, não a qualidade dos serviços de saúde.
+""")
+
+st.markdown("### Links")
+st.markdown(f"- Fonte dos dados: [DATASUS — Informações de Saúde (TabNet)]({LINKS['tabnet']})\n"
+            f"- Malhas territoriais: [IBGE]({LINKS['ibge_malhas']}) · distribuição usada: [geobr (IPEA)]({LINKS['geobr']})")
+for rotulo, chave in [("Notebook do projeto", "notebook"), ("Repositório do projeto", "repositorio")]:
+    if LINKS[chave]:
+        st.markdown(f"- {rotulo}: [{LINKS[chave]}]({LINKS[chave]})")
+    else:
+        st.markdown(f"- {rotulo}: *link a ser informado em `utils/config.py`*")
+
+with st.expander("Detalhes técnicos da execução"):
+    if meta:
+        st.markdown(f"- Resultados gerados em: {meta['gerado_em']}\n"
+                    f"- Modelo escolhido (menor MAE na validação): **{meta['modelo_escolhido']}**, "
+                    f"conjunto {meta['conjunto_modelo_escolhido']}\n"
+                    f"- Treino: {meta['periodo_treino_alvos'][0]} a {meta['periodo_treino_alvos'][1]} · "
+                    f"validação: {meta['periodo_validacao'][0]} a {meta['periodo_validacao'][1]} · "
+                    f"teste: {meta['periodo_teste'][0]} a {meta['periodo_teste'][1]}\n"
+                    f"- Versões: " + ", ".join(f"{k} {v}" for k, v in meta["versoes"].items()))
+    if malha:
+        st.markdown(f"- Malha municipal: {malha['fonte']} (obtida em {malha['obtida_em']}; "
+                    f"{malha['municipios']} municípios; simplificação de {malha['simplificacao_graus']}°)")
